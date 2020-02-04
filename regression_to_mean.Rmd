@@ -1,0 +1,192 @@
+---
+title: "Regression to the mean"
+author: "Steven Senior"
+date: "2/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+# Knitr options
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE)
+
+# Loading packages
+library(tidyverse)
+library(cowplot)
+library(knitr)
+```
+
+## Regression to the mean
+
+This blog is an attempt to briefly explain regression to the mean with particular reference to 'risk stratification'. I don't know who needs this, but regression to the mean is at the top of the list of things that I feel I should have been taught at school (along with opportunity costs).
+
+## What is risk stratification?
+
+In case you've never heard of it, here's a brief explanation of what I think risk stratification is.
+
+Risk stratification seems to be very popular with commissioners and providers of public services. It is being applied in a wide range of contexts (health, crime, etc.) but the basic idea is the same: you use the data that you have about people to identify those who are at the highest risk of some bad outcome (which normally means using a lot of public services and so costing the state lots of money). Then, having identified people at risk, you do something to reduce that risk. In theory, everyone wins: the people concerned get help sooner and don't end up in A&E (or a prison cell or whatever), and the state saves money. Sounds great, right?
+
+I've blogged elsewhere about why I think risk stratification has a lot in common with screening for health conditions, but the two are held to very different standards. You can read that blog [here](https://medium.com/@steven.senior/why-risk-stratification-is-a-form-of-screening-3df02926c142).
+
+## What has this got to do with regression to the mean?
+
+Typically, risk stratification will involve the development of some kind of algorithm that predicts some bad outcome. To do this, you'd often look for characteristics that are associated with the bad outcome. You would probably do this using historical data. The problem is that bad outcomes can happen because of both genuine underlying need and old fashioned bad luck.
+
+So in any given year you might need a lot of help from public services because of some underlying need - maybe you're old and frail, or maybe you don't have a lot of your own savings to draw on in hard times. Or you might just have some bad luck - you get hit by a car, or lose your job or similar. So if you look at a population who use a lot of public services this year, some of those people will just have been unlucky this year, and you'd expect that group to have a better year next year. 
+
+The problem this creates for risk stratification is that if you identify your highest users of public services this year **and do absolutely nothing** then as a group they'll probably need less help next year. This means that if your intervention is completely ineffective, it might still look like it worked.
+
+## A simulation
+
+We can simulate this. I'm using R to do this simulation. I've hidden the code, but for the interested, the code can be found [here]()
+
+Let's create an imaginary sample of 1000 people. Each person will have an underlying level of need. We'll call this propensity. This might be their level of health, or their risk of committing some crime. We'll call this 'propensity' to distinguish it from their overall level of need in a given year. 
+
+For the purposes of this simulation we'll assume that this is normally distributed, with average of 0 and standard deviation 1 (so negative values mean 'less than average underlying need') but it doesn't really matter. 
+
+```{r create population}
+# Set seed for reproducibility
+set.seed(1234)
+
+# Create population of 1000 people
+id <- 1:1000
+
+# Create propensity
+propensity <- rnorm(1000)
+
+# Create dataset
+d <- data.frame(id, propensity)
+
+# View the data
+kable(head(d))
+```
+
+Now let's add some bad luck. We can assume that this is normally distributed too, with average of 0 and standard deviation 1 (again, negative values just mean 'better than average luck this year'). Again, it's not all that important. Then we can say that an individual's need in any given year is the sum of their underlying propensity and their luck in year 1.
+
+```{r adding year 1 luck}
+# Year 1 luck
+set.seed(456)
+
+d <- d %>%
+     mutate(luck_1 = rnorm(1000),
+            need_1 = propensity + luck_1)
+
+# Plot need in year 1
+qplot(x = need_1,
+      data = d,
+      geom = "histogram") +
+  theme_cowplot() +
+  labs(title = "Distribution of need in year 1",
+       x = "Need in year 1",
+       y = "Count")
+```
+
+The graph above shows the distribution of overall need (i.e. underlying need or propensity *plus* their luck in that year).
+
+Now let's say we take the top 10% of our sample, so the 100 people who had the highest need in year 1 and look at their average propensity and luck scores:
+
+```{r year 1 top 10%}
+# Get top 100
+d_1 <- d %>% 
+  arrange(desc(need_1)) %>%
+  filter(ntile(need_1, 10) == 10)
+
+kable(summarise(d_1,
+          `average propensity` = mean(propensity),
+          `average luck in year 1` = mean(luck_1),
+          `average need in year 1` = mean(need_1)))
+```
+
+Notice that our top 10% has higher than average propensity **and** luck (remember both scores have average 0). It's worth looking at the distribution of both scores in our 10% sample:
+
+```{r}
+d_1_long <- gather(key = "variable",
+            value = "value",
+            data = d_1,
+            -id) %>%
+            mutate(variable = factor(variable,
+                                     labels = c("Year 1 luck",
+                                                "Year 1 need",
+                                                "Propensity")))
+
+ggplot(aes(x = value),
+       data = filter(d_1_long,
+                     variable != "Year 1 need")) +
+  geom_histogram() +
+  facet_wrap(facets = ~variable,
+             scale = "free_y") +
+  theme_cowplot() + 
+  labs(title = "Distribution of propensity and luck",
+       subtitle = "100 highest need people from year 1",
+       y = "Count",
+       x = NULL)
+```
+
+We can see from this that in our top 100 for need in year 1 we actually have a few individuals whose underyling need (i.e. 'propensity') was less than 0 (so below average). These are people who just had a *very* bad year. 
+
+Now, let's see what happens when we add a new set of luck scores for year 2. Again, this will be drawn from the same normal distribution as for year 1. Then we can calculate each individual's need for year two by adding their underlying need ('propensity') to their luck for year 2.
+
+```{r luck year 2}
+# Set seed
+set.seed(789)
+
+# Luck and need for year 2
+d <- mutate(d,
+            luck_2 = rnorm(1000),
+            need_2 = propensity + luck_2)
+```
+
+We can look at what happens when we take those who were in our top 100 highest need people in year 1 and look at their average need in year 1 and year 2:
+
+```{r comparing need in years 1 and 2 for top 100 from year 1}
+# Calculate average need in year 1 and 2 
+# for those that scored highest in year 1
+
+d_2 <- merge(d_1, d, by = c("id", "propensity", "luck_1", "need_1"))
+
+summarise(d_2, 
+          `average need in year 1` = mean(need_1),
+          `average need in year 2` = mean(need_2),
+          `average change in need` = mean(need_2 - need_1),
+          `average propensity` = mean(propensity)) %>%
+  kable()
+```
+
+So we can see that our highest need people from year 1 have had their average level of need reduce by over half! Our intervention is a success! Get HSJ on the phone!
+
+Wait, we didn't do anything! All that happened was our sample of highest need individuals from year 1 had a bit better luck in year 2 and their level of need 'regressed to the mean' - i.e. drifted back towards their average underlying level of need.
+
+## What to do?
+
+One solution to this problem is to randomise people to an intervention and control. Both groups will experience some regression to the mean, but if your intervention works then the group that gets will have *even lower* need the next year. 
+
+We can simulate this: imagine that we have an intervention that reduces need by an average of 0.4 points, with a standard deviation of 0.2 points (i.e. it doesn't work as well for everyone). We will identify the 100 at highest need in year 1, and randomly allocate them to either nothing or our intervention and see what happens to both group's levels of need.
+
+```{r simulating an RCT}
+# Set seed
+set.seed(135)
+
+# Allocate to intervention and reduce scores
+d_2 <- d_2 %>%
+       mutate(int = round(runif(100), digits = 0),
+              need_2_int = need_2 - int * rnorm(100, 0.4, 0.2),
+              change = need_2_int - need_1)
+
+group_by(d_2, int) %>%
+  summarise(`average need in year 1` = mean(need_1),
+            `average need in year 2` = mean(need_2),
+            `average change in need` = mean(change)) %>%
+  kable()
+       
+test <- t.test(change ~ int,
+               data = d_2)
+```
+
+So we can see that although both groups' levels of need declined, our intervention group's need reduced by more. 
+
+This shows why randomised trials are important for checking that programmes based on risk stratification actually work. The results are often [disappointing](https://discover.dc.nihr.ac.uk/content/signal-000557/introducing-a-primary-care-risk-prediction-tool-did-not-reduce-emergency-admissions), because early hopes were raised by effect sizes that were distorted by regression to the mean. 
+
+This is just an illustration, and an oversimplified one at that. In reality the approach would probably be more complicated than just taking the top x% with the highest level of use in a given year. There are other approaches to guarding against the effects described here. But it's usually worth considering whether results could be affected by regression to the mean.
+
+

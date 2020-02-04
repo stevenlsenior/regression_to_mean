@@ -41,7 +41,7 @@ The problem this creates for risk stratification is that if you identify your hi
 
 We can simulate this. I'm using R to do this simulation. I've hidden the code, but for the interested, the code can be found [here](https://github.com/stevenlsenior/regression_to_mean).
 
-Let's create an imaginary sample of 1000 people. Each person will have an underlying level of need. We'll call this propensity. This might be their level of health, or their risk of committing some crime. We'll call this 'propensity' to distinguish it from their overall level of need in a given year. 
+Let's create an imaginary sample of 1000 people. Each person will have an underlying level of need. This might be their level of health, or their risk of committing some crime. We'll call this 'propensity' to distinguish it from their overall level of need in a given year. 
 
 For the purposes of this simulation we'll assume that this is normally distributed, with average of 0 and standard deviation 1 (so negative values mean 'less than average underlying need') but it doesn't really matter. The top few rows of our data are shown below.
 
@@ -62,7 +62,7 @@ d <- data.frame(id, propensity)
 kable(head(d))
 ```
 
-Now let's add some bad luck. We can assume that this is normally distributed too, with average of 0 and standard deviation 1 (again, negative values just mean 'better than average luck this year'). Again, it's not all that important. Then we can say that an individual's need in any given year is the sum of their underlying propensity and their luck in year 1. 
+Now let's add some bad luck. We can assume that this is normally distributed too, with average of 0 and standard deviation 1 (as this is **bad** luck, negative values mean '**better** than average luck this year'). Again, it's not all that important. Then we can say that an individual's need in any given year is the sum of their underlying propensity and their luck in year 1. 
 
 ```{r adding year 1 luck}
 # Year 1 luck
@@ -76,7 +76,7 @@ d <- d %>%
 d %>% head() %>% kable()
 ```
 
-The graph above shows the distribution of overall need (i.e. underlying need or propensity *plus* their luck in that year).
+The graph below shows the distribution of overall need (i.e. underlying need or propensity *plus* their luck in that year).
 
 ```{r plotting distribution of need}
 # Plot need in year 1
@@ -160,7 +160,7 @@ summarise(d_2,
 
 So we can see that our highest need people from year 1 have had their average level of need reduce by over half! Our intervention is a success! Get HSJ on the phone!
 
-Wait, we didn't do anything! All that happened was our sample of highest need individuals from year 1 had a bit better luck in year 2 and their level of need 'regressed to the mean' - i.e. drifted back towards their average underlying level of need.
+Wait, we didn't do anything! All that happened was our sample of highest need individuals from year 1 had better luck in year 2 and their level of need 'regressed to the mean' - i.e. drifted back towards their average underlying level of need.
 
 ## What to do?
 
@@ -174,17 +174,20 @@ set.seed(135)
 
 # Allocate to intervention and reduce scores
 d_2 <- d_2 %>%
-       mutate(int = round(runif(100), digits = 0),
-              need_2_int = need_2 - int * rnorm(100, 0.4, 0.2),
+       mutate(intervention = round(runif(100), digits = 0),
+              need_2_int = need_2 - intervention * rnorm(100, 0.4, 0.2),
               change = need_2_int - need_1)
 
-group_by(d_2, int) %>%
+d_2 %>%
+  mutate(intervention = case_when(intervention == 1 ~ "Yes",
+                                  intervention == 0 ~ "No")) %>%
+  group_by(intervention) %>%
   summarise(`average need in year 1` = mean(need_1),
             `average need in year 2` = mean(need_2),
             `average change in need` = mean(change)) %>%
   kable()
        
-test <- t.test(change ~ int,
+test <- t.test(change ~ intervention,
                data = d_2)
 ```
 
@@ -194,4 +197,4 @@ This shows why randomised trials are important for checking that programmes base
 
 This is just an illustration, and an oversimplified one at that. In reality the approach would probably be more complicated than just taking the top x% with the highest level of use in a given year. There are other approaches to guarding against the effects described here. But it's usually worth considering whether results could be affected by regression to the mean.
 
-
+This is just one example of regression to the mean. It pops up in lots of places. For example, people tend to go to the doctor or take medication when they're feeling their worst. But because symptoms for even chronic diseases tend to wax and wane a bit, you can expect people to feel better regardless whether the treatment actually did anything.

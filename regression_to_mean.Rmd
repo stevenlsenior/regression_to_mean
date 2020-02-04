@@ -39,11 +39,11 @@ The problem this creates for risk stratification is that if you identify your hi
 
 ## A simulation
 
-We can simulate this. I'm using R to do this simulation. I've hidden the code, but for the interested, the code can be found [here]()
+We can simulate this. I'm using R to do this simulation. I've hidden the code, but for the interested, the code can be found [here](https://github.com/stevenlsenior/regression_to_mean).
 
 Let's create an imaginary sample of 1000 people. Each person will have an underlying level of need. We'll call this propensity. This might be their level of health, or their risk of committing some crime. We'll call this 'propensity' to distinguish it from their overall level of need in a given year. 
 
-For the purposes of this simulation we'll assume that this is normally distributed, with average of 0 and standard deviation 1 (so negative values mean 'less than average underlying need') but it doesn't really matter. 
+For the purposes of this simulation we'll assume that this is normally distributed, with average of 0 and standard deviation 1 (so negative values mean 'less than average underlying need') but it doesn't really matter. The top few rows of our data are shown below.
 
 ```{r create population}
 # Set seed for reproducibility
@@ -62,7 +62,7 @@ d <- data.frame(id, propensity)
 kable(head(d))
 ```
 
-Now let's add some bad luck. We can assume that this is normally distributed too, with average of 0 and standard deviation 1 (again, negative values just mean 'better than average luck this year'). Again, it's not all that important. Then we can say that an individual's need in any given year is the sum of their underlying propensity and their luck in year 1.
+Now let's add some bad luck. We can assume that this is normally distributed too, with average of 0 and standard deviation 1 (again, negative values just mean 'better than average luck this year'). Again, it's not all that important. Then we can say that an individual's need in any given year is the sum of their underlying propensity and their luck in year 1. 
 
 ```{r adding year 1 luck}
 # Year 1 luck
@@ -72,6 +72,13 @@ d <- d %>%
      mutate(luck_1 = rnorm(1000),
             need_1 = propensity + luck_1)
 
+# Preview data
+d %>% head() %>% kable()
+```
+
+The graph above shows the distribution of overall need (i.e. underlying need or propensity *plus* their luck in that year).
+
+```{r plotting distribution of need}
 # Plot need in year 1
 qplot(x = need_1,
       data = d,
@@ -81,8 +88,6 @@ qplot(x = need_1,
        x = "Need in year 1",
        y = "Count")
 ```
-
-The graph above shows the distribution of overall need (i.e. underlying need or propensity *plus* their luck in that year).
 
 Now let's say we take the top 10% of our sample, so the 100 people who had the highest need in year 1 and look at their average propensity and luck scores:
 
